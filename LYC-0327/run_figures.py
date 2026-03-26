@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -52,7 +53,7 @@ def _solve_one_direction(
     sweep_param: str,
     sweep_values: np.ndarray,
     extra_param: str | None = None,
-    extra_fn: object = None,
+    extra_fn: Callable[[float], float] | None = None,
     label: str = "",
 ) -> list[tuple[float, dict[str, float] | None, np.ndarray | None]]:
     """Solve along one direction with warm start.
@@ -92,7 +93,7 @@ def solve_sweep(
     sweep_param: str,
     sweep_values: np.ndarray,
     extra_param: str | None = None,
-    extra_fn: object = None,
+    extra_fn: Callable[[float], float] | None = None,
     bidirectional: bool = False,
 ) -> tuple[np.ndarray, dict[str, list[float]]]:
     """Solve along a parameter path with warm start.
