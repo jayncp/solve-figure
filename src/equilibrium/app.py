@@ -31,6 +31,7 @@ def run_demo_pipeline(output_dir: str | Path = "output") -> Path:
         sweep_values=np.linspace(0.25, 4.0, 8),
         metric_names=["x", "y", "total"],
         initial_guess=np.array([1.0, 0.75], dtype=float),
+        mode="path",
     )
     figure = plotter.plot_1d(
         result,
