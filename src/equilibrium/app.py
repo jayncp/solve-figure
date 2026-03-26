@@ -6,9 +6,18 @@ from pathlib import Path
 
 import numpy as np
 
-from equilibrium.models import DemoEquilibriumModel
+from equilibrium.models import (
+    DemoEquilibriumModel,
+    TwoPeriodModel,
+    default_two_period_benchmark,
+)
 from equilibrium.plotting import FigurePlotter, ParameterSweep
-from equilibrium.solvers import CompositeSolver, ScipyRootSolver
+from equilibrium.solvers import (
+    CompositeSolver,
+    ContinuationSolver,
+    ScipyRootSolver,
+    SolveResult,
+)
 
 
 def run_demo_pipeline(output_dir: str | Path = "output") -> Path:
@@ -45,6 +54,34 @@ def run_demo_pipeline(output_dir: str | Path = "output") -> Path:
 def build_status_message(figure_path: str | Path) -> str:
     """Return a short package status summary for the demo pipeline stage."""
     return f"demo pipeline complete: figure saved to {Path(figure_path)}"
+
+
+def build_two_period_solver() -> ContinuationSolver:
+    """Build the layered solver used for the two-period benchmark."""
+    step_solver = CompositeSolver(
+        [
+            ScipyRootSolver(method="hybr", require_constraints=True),
+            ScipyRootSolver(method="lm", require_constraints=True),
+        ]
+    )
+    benchmark = default_two_period_benchmark()
+    return ContinuationSolver(
+        step_solver,
+        acceptance=benchmark.acceptance,
+        path_builder=lambda params: benchmark.continuation_path(),
+    )
+
+
+def run_two_period_benchmark() -> SolveResult:
+    """Solve the default two-period benchmark through continuation."""
+    benchmark = default_two_period_benchmark()
+    system = TwoPeriodModel()
+    solver = build_two_period_solver()
+    return solver.solve(
+        system,
+        benchmark.params,
+        initial_guess=benchmark.initial_guess,
+    )
 
 
 def main() -> None:

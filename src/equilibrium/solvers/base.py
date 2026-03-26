@@ -31,6 +31,23 @@ class SolverStrategy(Protocol):
     ) -> SolveResult: ...
 
 
+@dataclass(frozen=True, slots=True)
+class SolveAcceptance:
+    """Acceptance criteria applied after a solver returns."""
+
+    residual_tol: float = 1e-8
+    require_success: bool = True
+    require_constraints: bool = True
+
+    def accepts(self, result: "SolveResult") -> bool:
+        """Return True when a result satisfies all configured acceptance checks."""
+        if self.require_success and not result.success:
+            return False
+        if self.require_constraints and not result.constraints_ok:
+            return False
+        return result.residual_norm <= self.residual_tol
+
+
 @dataclass(slots=True)
 class SolverFailure:
     """Structured description of a failed solver attempt."""
