@@ -1,0 +1,12 @@
+[book]
+title = "Equilibrium 求解框架文档"
+authors = ["jayncp"]
+language = "zh-CN"
+src = "docs"
+
+[build]
+build-dir = "docs/book"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
