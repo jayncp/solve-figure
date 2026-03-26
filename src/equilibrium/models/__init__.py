@@ -8,9 +8,11 @@ from equilibrium.models.base import (
     NDArrayFloat,
     Params,
 )
+from equilibrium.models.demo_model import DemoEquilibriumModel
 
 __all__ = [
     "ConstraintMap",
+    "DemoEquilibriumModel",
     "EquationSystem",
     "IntermediateMap",
     "MetricMap",
