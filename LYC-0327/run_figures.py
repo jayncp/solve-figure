@@ -45,22 +45,21 @@ def make_solver() -> CompositeSolver:
     ])
 
 
-def solve_sweep(
+def _solve_one_direction(
     sweep_param: str,
     sweep_values: np.ndarray,
     extra_param: str | None = None,
     extra_fn: object = None,
-) -> tuple[np.ndarray, dict[str, list[float]]]:
-    """Solve along a parameter path with warm start.
+    label: str = "",
+) -> list[tuple[float, dict[str, float] | None, np.ndarray | None]]:
+    """Solve along one direction with warm start.
 
-    Returns (x_values, {metric_name: [values]}).
-    For J_I sweep, extra_param="J_U" and extra_fn computes J_U from J_I.
+    Returns list of (residual, metrics_dict_or_None, solution_x_or_None) per point.
     """
     model = TwoPeriodModel()
     solver = make_solver()
-
-    results: dict[str, list[float]] = {m: [] for m in METRICS}
     current_guess = INITIAL_GUESS.copy()
+    out: list[tuple[float, dict[str, float] | None, np.ndarray | None]] = []
     success_count = 0
 
     for i, val in enumerate(sweep_values):
@@ -72,19 +71,65 @@ def solve_sweep(
         try:
             result = solver.solve(model, params, initial_guess=current_guess)
             if result.success:
-                for m in METRICS:
-                    results[m].append(result.metrics.get(m, float("nan")))
+                out.append((result.residual_norm, dict(result.metrics), result.x.copy()))
                 current_guess = result.x
                 success_count += 1
             else:
-                for m in METRICS:
-                    results[m].append(float("nan"))
+                out.append((float("inf"), None, None))
         except Exception:
-            for m in METRICS:
-                results[m].append(float("nan"))
+            out.append((float("inf"), None, None))
 
         if (i + 1) % 10 == 0 or i == len(sweep_values) - 1:
-            print(f"  [{i+1}/{len(sweep_values)}] success so far: {success_count}")
+            print(f"  {label}[{i+1}/{len(sweep_values)}] success: {success_count}")
+
+    return out
+
+
+def solve_sweep(
+    sweep_param: str,
+    sweep_values: np.ndarray,
+    extra_param: str | None = None,
+    extra_fn: object = None,
+    bidirectional: bool = False,
+) -> tuple[np.ndarray, dict[str, list[float]]]:
+    """Solve along a parameter path with warm start.
+
+    If bidirectional=True, sweep both forward and reverse, then merge
+    taking the result with smaller residual at each point.
+    """
+    fwd = _solve_one_direction(
+        sweep_param, sweep_values, extra_param, extra_fn, label="fwd"
+    )
+
+    if bidirectional:
+        rev_raw = _solve_one_direction(
+            sweep_param, sweep_values[::-1], extra_param, extra_fn, label="rev"
+        )
+        rev = list(reversed(rev_raw))
+
+        merged: list[tuple[float, dict[str, float] | None, np.ndarray | None]] = []
+        for f, r in zip(fwd, rev):
+            if f[1] is not None and r[1] is not None:
+                merged.append(f if f[0] <= r[0] else r)
+            elif f[1] is not None:
+                merged.append(f)
+            elif r[1] is not None:
+                merged.append(r)
+            else:
+                merged.append(f)
+        fwd = merged
+
+        n_success = sum(1 for x in fwd if x[1] is not None)
+        print(f"  merged: {n_success}/{len(fwd)} success")
+
+    results: dict[str, list[float]] = {m: [] for m in METRICS}
+    for _, metrics, _ in fwd:
+        if metrics is not None:
+            for m in METRICS:
+                results[m].append(metrics.get(m, float("nan")))
+        else:
+            for m in METRICS:
+                results[m].append(float("nan"))
 
     return sweep_values, results
 
@@ -118,14 +163,14 @@ def run_all() -> None:
     print("Fig 1: J_I sweep (J_I + J_U = 30)")
     print("=" * 60)
     j_values = np.arange(1, 30, dtype=float)
-    x, res = solve_sweep("J_I", j_values, extra_param="J_U", extra_fn=lambda j: 30 - j)
+    x, res = solve_sweep("J_I", j_values, extra_param="J_U", extra_fn=lambda j: 30 - j, bidirectional=True)
     plot_profit_curves(x, res, "J_I", "Profits vs J_I (J_I + J_U = 30)", "fig1_J_I_sweep.png")
 
     # ── 图 2: sigma_epsilon2 变化 ──
     print("=" * 60)
     print("Fig 2: sigma_epsilon2 sweep")
     print("=" * 60)
-    x, res = solve_sweep("sigma_epsilon2", np.linspace(0.1, 30, 100))
+    x, res = solve_sweep("sigma_epsilon2", np.linspace(0.1, 30, 100), bidirectional=True)
     plot_profit_curves(x, res, r"$\sigma_\epsilon^2$", r"Profits vs $\sigma_\epsilon^2$", "fig2_sigma_epsilon2_sweep.png")
 
     # ── 图 3: sigma_eta2 变化 ──
