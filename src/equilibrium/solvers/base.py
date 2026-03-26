@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 from equilibrium.models.base import (
     ConstraintMap,
@@ -13,6 +14,21 @@ from equilibrium.models.base import (
     Params,
 )
 from equilibrium.utils.validation import constraints_ok, ensure_finite, to_float_array
+
+
+class SolverStrategy(Protocol):
+    """Protocol implemented by all solver strategies."""
+
+    name: str
+
+    def solve(
+        self,
+        system: EquationSystem,
+        params: Params,
+        initial_guess: NDArrayFloat | None = None,
+        *,
+        options: dict[str, object] | None = None,
+    ) -> SolveResult: ...
 
 
 @dataclass(slots=True)
