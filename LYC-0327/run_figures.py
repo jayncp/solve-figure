@@ -15,7 +15,8 @@ from equilibrium.models.two_period import TwoPeriodModel
 from equilibrium.solvers.composite import CompositeSolver
 from equilibrium.solvers.scipy_root import ScipyRootSolver
 
-OUTPUT_DIR = Path(__file__).parent
+OUTPUT_DIR = Path(__file__).parent / "figures"
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 METRICS = ("profit_informed_mm", "profit_uninformed_mm")
 LABELS = {"profit_informed_mm": "Informed MM", "profit_uninformed_mm": "Uninformed MM"}
