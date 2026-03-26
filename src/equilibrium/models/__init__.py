@@ -9,6 +9,7 @@ from equilibrium.models.base import (
     Params,
 )
 from equilibrium.models.demo_model import DemoEquilibriumModel
+from equilibrium.models.two_period import TwoPeriodModel
 
 __all__ = [
     "ConstraintMap",
@@ -18,4 +19,5 @@ __all__ = [
     "MetricMap",
     "NDArrayFloat",
     "Params",
+    "TwoPeriodModel",
 ]
