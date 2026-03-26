@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
 
 import matplotlib
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
-from matplotlib.figure import Figure
 
 import numpy as np
 
-from equilibrium.models.two_period import TwoPeriodModel
+from two_period import TwoPeriodModel
 from equilibrium.solvers.composite import CompositeSolver
 from equilibrium.solvers.scipy_root import ScipyRootSolver
 
