@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
-from equilibrium.plotting.sweep import SweepResult1D
+from equilibrium.plotting.sweep import SweepResult1D, SweepResult2D
 
 
 class FigurePlotter:
@@ -51,3 +51,33 @@ class FigurePlotter:
         figure.savefig(target, dpi=150)
         plt.close(figure)
         return target
+
+    def plot_2d_heatmap(
+        self,
+        result: SweepResult2D,
+        metric: str,
+        *,
+        title: str | None = None,
+        xlabel: str | None = None,
+        ylabel: str | None = None,
+    ) -> Figure:
+        """Plot a 2D heatmap for one metric."""
+        figure, axis = plt.subplots(figsize=(7.5, 5.5))
+        grid = result.metric_grid(metric)
+        image = axis.imshow(
+            grid,
+            origin="lower",
+            aspect="auto",
+            extent=(
+                float(result.sweep_values_2[0]),
+                float(result.sweep_values_2[-1]),
+                float(result.sweep_values_1[0]),
+                float(result.sweep_values_1[-1]),
+            ),
+        )
+        axis.set_xlabel(xlabel or result.sweep_param_2)
+        axis.set_ylabel(ylabel or result.sweep_param_1)
+        axis.set_title(title or f"{metric} heatmap")
+        figure.colorbar(image, ax=axis, label=metric)
+        figure.tight_layout()
+        return figure

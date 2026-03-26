@@ -20,14 +20,20 @@ class TwoPeriodBenchmark:
     expected_solution: NDArrayFloat
     acceptance: SolveAcceptance
 
-    def continuation_path(self, *, steps: int = 5) -> tuple[Params, ...]:
+    def continuation_path(
+        self,
+        target_params: Params | None = None,
+        *,
+        steps: int = 5,
+    ) -> tuple[Params, ...]:
         """Build a simple rho-continuation path ending at the benchmark params."""
         if steps < 2:
             raise ValueError("steps must be at least 2")
-        rho_values = np.linspace(0.0, self.params["rho"], steps)
+        target = dict(self.params if target_params is None else target_params)
+        rho_values = np.linspace(0.0, target["rho"], steps)
         path = []
         for rho in rho_values:
-            step = dict(self.params)
+            step = dict(target)
             step["rho"] = float(rho)
             path.append(step)
         return tuple(path)

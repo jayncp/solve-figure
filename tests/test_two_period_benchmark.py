@@ -1,7 +1,13 @@
 import numpy as np
 import pytest
 
-from equilibrium.app import build_two_period_solver, run_two_period_benchmark
+from pathlib import Path
+
+from equilibrium.app import (
+    build_two_period_solver,
+    run_two_period_analysis,
+    run_two_period_benchmark,
+)
 from equilibrium.models import TwoPeriodModel, default_two_period_benchmark
 from equilibrium.solvers import CompositeSolver, ScipyRootSolver
 
@@ -60,3 +66,10 @@ def test_run_two_period_benchmark_returns_accepted_result() -> None:
     result = run_two_period_benchmark()
 
     assert benchmark.acceptance.accepts(result) is True
+
+
+def test_run_two_period_analysis_persists_expected_outputs(tmp_path: Path) -> None:
+    outputs = run_two_period_analysis(tmp_path)
+
+    assert set(outputs) == {"heatmap_png", "summary_json", "sweep_json"}
+    assert all(path.exists() for path in outputs.values())

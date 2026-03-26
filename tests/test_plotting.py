@@ -58,6 +58,57 @@ def test_plotter_saves_figure(tmp_path: Path) -> None:
     assert path.exists()
 
 
+def test_sweep_2d_returns_metric_grid_and_json(tmp_path: Path) -> None:
+    system = DemoEquilibriumModel()
+    solver = ScipyRootSolver(require_constraints=True)
+    sweep = ParameterSweep()
+
+    result = sweep.sweep_2d(
+        system,
+        solver,
+        base_params={"curvature": 1.0, "slope": 0.5},
+        sweep_param_1="curvature",
+        sweep_values_1=np.array([0.25, 1.0], dtype=float),
+        sweep_param_2="slope",
+        sweep_values_2=np.array([0.5, 1.0], dtype=float),
+        metric_names=["x", "y"],
+        initial_guess=np.array([1.0, 0.5], dtype=float),
+        mode="path",
+    )
+
+    grid = result.metric_grid("x")
+    json_path = sweep.save_json(result, tmp_path / "sweep_2d.json")
+
+    assert result.mode == "path"
+    assert grid.shape == (2, 2)
+    assert np.all(result.success_mask() == np.ones((2, 2), dtype=float))
+    assert json_path.exists()
+
+
+def test_plotter_saves_2d_heatmap(tmp_path: Path) -> None:
+    system = DemoEquilibriumModel()
+    solver = ScipyRootSolver(require_constraints=True)
+    sweep = ParameterSweep()
+    plotter = FigurePlotter()
+
+    result = sweep.sweep_2d(
+        system,
+        solver,
+        base_params={"curvature": 1.0, "slope": 0.5},
+        sweep_param_1="curvature",
+        sweep_values_1=np.array([0.25, 1.0], dtype=float),
+        sweep_param_2="slope",
+        sweep_values_2=np.array([0.5, 1.0], dtype=float),
+        metric_names=["x", "y"],
+        initial_guess=np.array([1.0, 0.5], dtype=float),
+        mode="path",
+    )
+    figure = plotter.plot_2d_heatmap(result, metric="x", title="heatmap")
+    path = plotter.save(figure, tmp_path / "heatmap.png")
+
+    assert path.exists()
+
+
 class TrackingSystem(EquationSystem):
     @property
     def variable_names(self) -> tuple[str, ...]:
