@@ -1,5 +1,4 @@
-def main():
-    print("Hello from solve-figure0326!")
+from equilibrium.app import main
 
 
 if __name__ == "__main__":

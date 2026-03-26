@@ -2,15 +2,26 @@ current_branch := shell("git branch --show-current")
 
 [group('lint')]
 lint:
-    uv sync
-    uvx ruff check .
-    uvx ruff format --check --diff .
-    uvx ty check .
+    uv sync --all-groups
+    uv run ruff check .
+    uv run ruff format --check --diff .
+    uv run ty check .
 
 [group('lint')]
 fix-lint:
-    uvx ruff check --fix --unsafe-fixes .
-    uvx ruff format .
+    uv sync --all-groups
+    uv run ruff check --fix --unsafe-fixes .
+    uv run ruff format .
+
+[group('test')]
+test:
+    uv sync --all-groups
+    uv run pytest
+
+[group('test')]
+check:
+    just lint
+    just test
 
 [group('git')]
 switch:

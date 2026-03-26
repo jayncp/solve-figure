@@ -1,13 +1,34 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
 [project]
 name = "solve-figure0326"
 version = "0.1.0"
-description = "Add your description here"
+description = "Framework for nonlinear equilibrium solving and parameter sweeps"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "matplotlib>=3.10.0",
+    "numpy>=2.3.0",
+    "scipy>=1.16.0",
+]
+
+[project.scripts]
+solve-figure0326 = "equilibrium.app:main"
 
 [dependency-groups]
 dev = [
+    "pytest>=8.4.2",
     "ruff>=0.14.10",
     "ty>=0.0.6",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/equilibrium"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
