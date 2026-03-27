@@ -416,6 +416,7 @@ class TwoPeriodModel(EquationSystem):
             "profit_insider": profit_insider,
             "profit_informed_mm": profit_informed_mm,
             "profit_uninformed_mm": profit_uninformed_mm,
+            "Gamma": profit_insider + profit_informed_mm + profit_uninformed_mm,
         }
         self._ensure_all_finite(intermediates)
         return intermediates
@@ -473,6 +474,7 @@ class TwoPeriodModel(EquationSystem):
             "profit_insider": intermediates["profit_insider"],
             "profit_informed_mm": intermediates["profit_informed_mm"],
             "profit_uninformed_mm": intermediates["profit_uninformed_mm"],
+            "Gamma": intermediates["Gamma"],
         }
 
     def _safe_div(self, name: str, numerator: float, denominator: float) -> float:

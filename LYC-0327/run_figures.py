@@ -21,8 +21,13 @@ from equilibrium.solvers.scipy_root import ScipyRootSolver
 OUTPUT_DIR = Path(__file__).parent / "figures"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-METRICS = ("profit_informed_mm", "profit_uninformed_mm")
-LABELS = {"profit_informed_mm": "Informed MM", "profit_uninformed_mm": "Uninformed MM"}
+METRICS = ("profit_insider", "profit_informed_mm", "profit_uninformed_mm", "Gamma")
+LABELS = {
+    "profit_insider": "Insider",
+    "profit_informed_mm": "Informed MM",
+    "profit_uninformed_mm": "Uninformed MM",
+    "Gamma": r"$\Gamma$ (Noise Trader Loss)",
+}
 
 BASE_PARAMS = {
     "J_I": 15.0,
@@ -147,7 +152,15 @@ def plot_profit_curves(
 ) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
     for m in METRICS:
-        ax.plot(x_values, results[m], marker=".", markersize=3, label=LABELS[m])
+        y = np.array(results[m])
+        ax.plot(x_values, y, marker=".", markersize=3, label=LABELS[m])
+        # Mark max (red) and min (blue) for non-NaN values
+        valid = np.isfinite(y)
+        if valid.any():
+            idx_max = np.nanargmax(y)
+            idx_min = np.nanargmin(y)
+            ax.plot(x_values[idx_max], y[idx_max], ".", color="red", markersize=4, zorder=5)
+            ax.plot(x_values[idx_min], y[idx_min], ".", color="blue", markersize=4, zorder=5)
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Expected Profit", fontsize=12)
     ax.set_title(title, fontsize=14)
