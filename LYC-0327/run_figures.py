@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import matplotlib
+
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 
@@ -46,12 +47,14 @@ INITIAL_GUESS = np.array(
 
 
 def make_solver() -> CompositeSolver:
-    return CompositeSolver([
-        ScipyRootSolver(method="hybr", require_constraints=True),
-        ScipyRootSolver(method="lm", require_constraints=True),
-        ScipyRootSolver(method="hybr", require_constraints=False),
-        ScipyRootSolver(method="lm", require_constraints=False),
-    ])
+    return CompositeSolver(
+        [
+            ScipyRootSolver(method="hybr", require_constraints=True),
+            ScipyRootSolver(method="lm", require_constraints=True),
+            ScipyRootSolver(method="hybr", require_constraints=False),
+            ScipyRootSolver(method="lm", require_constraints=False),
+        ]
+    )
 
 
 def _solve_one_direction(
@@ -80,7 +83,9 @@ def _solve_one_direction(
         try:
             result = solver.solve(model, params, initial_guess=current_guess)
             if result.success:
-                out.append((result.residual_norm, dict(result.metrics), result.x.copy()))
+                out.append(
+                    (result.residual_norm, dict(result.metrics), result.x.copy())
+                )
                 current_guess = result.x
                 success_count += 1
             else:
@@ -89,7 +94,7 @@ def _solve_one_direction(
             out.append((float("inf"), None, None))
 
         if (i + 1) % 10 == 0 or i == len(sweep_values) - 1:
-            print(f"  {label}[{i+1}/{len(sweep_values)}] success: {success_count}")
+            print(f"  {label}[{i + 1}/{len(sweep_values)}] success: {success_count}")
 
     return out
 
@@ -159,8 +164,12 @@ def plot_profit_curves(
         if valid.any():
             idx_max = np.nanargmax(y)
             idx_min = np.nanargmin(y)
-            ax.plot(x_values[idx_max], y[idx_max], ".", color="red", markersize=4, zorder=5)
-            ax.plot(x_values[idx_min], y[idx_min], ".", color="blue", markersize=4, zorder=5)
+            ax.plot(
+                x_values[idx_max], y[idx_max], ".", color="red", markersize=4, zorder=5
+            )
+            ax.plot(
+                x_values[idx_min], y[idx_min], ".", color="blue", markersize=4, zorder=5
+            )
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Expected Profit", fontsize=12)
     ax.set_title(title, fontsize=14)
@@ -174,7 +183,10 @@ def plot_profit_curves(
     print(f"  Saved: {path}")
 
 
-GROUP_SMALL = ("profit_informed_mm", "profit_uninformed_mm")  # MM group (small values, bottom)
+GROUP_SMALL = (
+    "profit_informed_mm",
+    "profit_uninformed_mm",
+)  # MM group (small values, bottom)
 GROUP_LARGE = ("profit_insider", "Gamma")  # Insider/Noise group (large values, top)
 
 
@@ -233,22 +245,42 @@ def plot_profit_curves_rescaled(
         if valid.any():
             idx_max = int(np.nanargmax(y_raw))
             idx_min = int(np.nanargmin(y_raw))
-            ax.plot(x_values[idx_max], y_vis[idx_max], "o", color="red",
-                    markersize=7, zorder=5)
-            ax.plot(x_values[idx_min], y_vis[idx_min], "o", color="blue",
-                    markersize=7, zorder=5)
+            ax.plot(
+                x_values[idx_max],
+                y_vis[idx_max],
+                "o",
+                color="red",
+                markersize=7,
+                zorder=5,
+            )
+            ax.plot(
+                x_values[idx_min],
+                y_vis[idx_min],
+                "o",
+                color="blue",
+                markersize=7,
+                zorder=5,
+            )
 
     # ── break mark (diagonal lines at the boundary) ──
     brk_y = (V_S_HI + V_L_LO) / 2
     d = 0.008
     for xf in (0.0, 1.0):  # on both spines
         ax.plot(
-            [xf - 0.015, xf + 0.015], [brk_y - d, brk_y + d],
-            transform=ax.transAxes, color="k", clip_on=False, linewidth=1.2,
+            [xf - 0.015, xf + 0.015],
+            [brk_y - d, brk_y + d],
+            transform=ax.transAxes,
+            color="k",
+            clip_on=False,
+            linewidth=1.2,
         )
         ax.plot(
-            [xf - 0.015, xf + 0.015], [brk_y - 2 * d, brk_y],
-            transform=ax.transAxes, color="k", clip_on=False, linewidth=1.2,
+            [xf - 0.015, xf + 0.015],
+            [brk_y - 2 * d, brk_y],
+            transform=ax.transAxes,
+            color="k",
+            clip_on=False,
+            linewidth=1.2,
         )
 
     # ── non-uniform y-axis ticks ──
@@ -259,7 +291,9 @@ def plot_profit_curves_rescaled(
     pos_l = to_visual(ticks_l, "large")
 
     all_pos = np.concatenate([pos_s, pos_l])
-    all_labels: list[str] = [f"{v:.4f}" for v in ticks_s] + [f"{v:.4f}" for v in ticks_l]
+    all_labels: list[str] = [f"{v:.4f}" for v in ticks_s] + [
+        f"{v:.4f}" for v in ticks_l
+    ]
 
     ax.set_yticks(all_pos)
     ax.set_yticklabels(all_labels, fontsize=8)
@@ -286,33 +320,81 @@ def run_all() -> None:
     print("Fig 1: J_I sweep (J_I + J_U = 30)")
     print("=" * 60)
     j_values = np.arange(1, 30, dtype=float)
-    x, res = solve_sweep("J_I", j_values, extra_param="J_U", extra_fn=lambda j: 30 - j, bidirectional=True)
-    plot_profit_curves(x, res, "J_I", "Profits vs J_I (J_I + J_U = 30)", "fig1_J_I_sweep.png")
-    plot_profit_curves_rescaled(x, res, "J_I", "Profits vs J_I (J_I + J_U = 30) [rescaled]", "fig1_J_I_sweep_rescaled.png")
+    x, res = solve_sweep(
+        "J_I",
+        j_values,
+        extra_param="J_U",
+        extra_fn=lambda j: 30 - j,
+        bidirectional=True,
+    )
+    plot_profit_curves(
+        x, res, "J_I", "Profits vs J_I (J_I + J_U = 30)", "fig1_J_I_sweep.png"
+    )
+    plot_profit_curves_rescaled(
+        x,
+        res,
+        "J_I",
+        "Profits vs J_I (J_I + J_U = 30) [rescaled]",
+        "fig1_J_I_sweep_rescaled.png",
+    )
 
     # ── 图 2: sigma_epsilon2 变化 ──
     print("=" * 60)
     print("Fig 2: sigma_epsilon2 sweep")
     print("=" * 60)
-    x, res = solve_sweep("sigma_epsilon2", np.linspace(0.1, 30, 100), bidirectional=True)
-    plot_profit_curves(x, res, r"$\sigma_\epsilon^2$", r"Profits vs $\sigma_\epsilon^2$", "fig2_sigma_epsilon2_sweep.png")
-    plot_profit_curves_rescaled(x, res, r"$\sigma_\epsilon^2$", r"Profits vs $\sigma_\epsilon^2$ [rescaled]", "fig2_sigma_epsilon2_sweep_rescaled.png")
+    x, res = solve_sweep(
+        "sigma_epsilon2", np.linspace(0.1, 30, 100), bidirectional=True
+    )
+    plot_profit_curves(
+        x,
+        res,
+        r"$\sigma_\epsilon^2$",
+        r"Profits vs $\sigma_\epsilon^2$",
+        "fig2_sigma_epsilon2_sweep.png",
+    )
+    plot_profit_curves_rescaled(
+        x,
+        res,
+        r"$\sigma_\epsilon^2$",
+        r"Profits vs $\sigma_\epsilon^2$ [rescaled]",
+        "fig2_sigma_epsilon2_sweep_rescaled.png",
+    )
 
     # ── 图 3: sigma_eta2 变化 ──
     print("=" * 60)
     print("Fig 3: sigma_eta2 sweep")
     print("=" * 60)
     x, res = solve_sweep("sigma_eta2", np.linspace(0.1, 30, 100))
-    plot_profit_curves(x, res, r"$\sigma_\eta^2$", r"Profits vs $\sigma_\eta^2$", "fig3_sigma_eta2_sweep.png")
-    plot_profit_curves_rescaled(x, res, r"$\sigma_\eta^2$", r"Profits vs $\sigma_\eta^2$ [rescaled]", "fig3_sigma_eta2_sweep_rescaled.png")
+    plot_profit_curves(
+        x,
+        res,
+        r"$\sigma_\eta^2$",
+        r"Profits vs $\sigma_\eta^2$",
+        "fig3_sigma_eta2_sweep.png",
+    )
+    plot_profit_curves_rescaled(
+        x,
+        res,
+        r"$\sigma_\eta^2$",
+        r"Profits vs $\sigma_\eta^2$ [rescaled]",
+        "fig3_sigma_eta2_sweep_rescaled.png",
+    )
 
     # ── 图 4: sigma_u2 变化 ──
     print("=" * 60)
     print("Fig 4: sigma_u2 sweep")
     print("=" * 60)
     x, res = solve_sweep("sigma_u2", np.linspace(0.1, 30, 100))
-    plot_profit_curves(x, res, r"$\sigma_u^2$", r"Profits vs $\sigma_u^2$", "fig4_sigma_u2_sweep.png")
-    plot_profit_curves_rescaled(x, res, r"$\sigma_u^2$", r"Profits vs $\sigma_u^2$ [rescaled]", "fig4_sigma_u2_sweep_rescaled.png")
+    plot_profit_curves(
+        x, res, r"$\sigma_u^2$", r"Profits vs $\sigma_u^2$", "fig4_sigma_u2_sweep.png"
+    )
+    plot_profit_curves_rescaled(
+        x,
+        res,
+        r"$\sigma_u^2$",
+        r"Profits vs $\sigma_u^2$ [rescaled]",
+        "fig4_sigma_u2_sweep_rescaled.png",
+    )
 
     # ── 图 5: rho 变化 ──
     print("=" * 60)
@@ -320,7 +402,13 @@ def run_all() -> None:
     print("=" * 60)
     x, res = solve_sweep("rho", np.linspace(0.01, 0.99, 100))
     plot_profit_curves(x, res, r"$\rho$", r"Profits vs $\rho$", "fig5_rho_sweep.png")
-    plot_profit_curves_rescaled(x, res, r"$\rho$", r"Profits vs $\rho$ [rescaled]", "fig5_rho_sweep_rescaled.png")
+    plot_profit_curves_rescaled(
+        x,
+        res,
+        r"$\rho$",
+        r"Profits vs $\rho$ [rescaled]",
+        "fig5_rho_sweep_rescaled.png",
+    )
 
     print("\nAll figures complete.")
 
