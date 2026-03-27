@@ -174,6 +174,112 @@ def plot_profit_curves(
     print(f"  Saved: {path}")
 
 
+GROUP_SMALL = ("profit_informed_mm", "profit_uninformed_mm")  # MM group (small values, bottom)
+GROUP_LARGE = ("profit_insider", "Gamma")  # Insider/Noise group (large values, top)
+
+
+def _group_range(
+    results: dict[str, list[float]], keys: tuple[str, ...], expand: float = 0.10
+) -> tuple[float, float]:
+    """Return (lo, hi) across all keys, expanded by *expand* fraction on each side."""
+    vals = np.concatenate([np.array(results[k]) for k in keys])
+    vals = vals[np.isfinite(vals)]
+    lo, hi = float(vals.min()), float(vals.max())
+    margin = (hi - lo) * expand if hi != lo else abs(lo) * expand or 0.1
+    return lo - margin, hi + margin
+
+
+def plot_profit_curves_rescaled(
+    x_values: np.ndarray,
+    results: dict[str, list[float]],
+    xlabel: str,
+    title: str,
+    filename: str,
+) -> None:
+    """Single y-axis with piecewise-linear scaling.
+
+    The MM group (small) occupies the bottom half of the visual space and
+    the Insider/Gamma group (large) occupies the top half, with a break
+    mark in between.  Tick labels show true values; grid uses dashed lines.
+    """
+    lo_s, hi_s = _group_range(results, GROUP_SMALL)  # small range (bottom)
+    lo_l, hi_l = _group_range(results, GROUP_LARGE)  # large range (top)
+
+    # Each group maps to half the visual height.
+    # visual coordinate: small group -> [0, 0.48], gap -> 0.48‥0.52, large group -> [0.52, 1]
+    V_S_LO, V_S_HI = 0.0, 0.48
+    V_L_LO, V_L_HI = 0.52, 1.0
+
+    def to_visual(y: np.ndarray, group: str) -> np.ndarray:
+        """Map original y -> visual coordinate based on group membership."""
+        y = np.asarray(y, dtype=float)
+        if group == "small":
+            frac = (y - lo_s) / (hi_s - lo_s) if hi_s != lo_s else np.full_like(y, 0.5)
+            return V_S_LO + frac * (V_S_HI - V_S_LO)
+        else:
+            frac = (y - lo_l) / (hi_l - lo_l) if hi_l != lo_l else np.full_like(y, 0.5)
+            return V_L_LO + frac * (V_L_HI - V_L_LO)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    for m in METRICS:
+        grp = "small" if m in GROUP_SMALL else "large"
+        y_raw = np.array(results[m])
+        y_vis = to_visual(y_raw, grp)
+
+        ax.plot(x_values, y_vis, marker=".", markersize=3, label=LABELS[m])
+
+        valid = np.isfinite(y_raw)
+        if valid.any():
+            idx_max = int(np.nanargmax(y_raw))
+            idx_min = int(np.nanargmin(y_raw))
+            ax.plot(x_values[idx_max], y_vis[idx_max], "o", color="red",
+                    markersize=7, zorder=5)
+            ax.plot(x_values[idx_min], y_vis[idx_min], "o", color="blue",
+                    markersize=7, zorder=5)
+
+    # ── break mark (diagonal lines at the boundary) ──
+    brk_y = (V_S_HI + V_L_LO) / 2
+    d = 0.008
+    for xf in (0.0, 1.0):  # on both spines
+        ax.plot(
+            [xf - 0.015, xf + 0.015], [brk_y - d, brk_y + d],
+            transform=ax.transAxes, color="k", clip_on=False, linewidth=1.2,
+        )
+        ax.plot(
+            [xf - 0.015, xf + 0.015], [brk_y - 2 * d, brk_y],
+            transform=ax.transAxes, color="k", clip_on=False, linewidth=1.2,
+        )
+
+    # ── non-uniform y-axis ticks ──
+    n_ticks = 6
+    ticks_s = np.linspace(lo_s, hi_s, n_ticks)
+    ticks_l = np.linspace(lo_l, hi_l, n_ticks)
+    pos_s = to_visual(ticks_s, "small")
+    pos_l = to_visual(ticks_l, "large")
+
+    all_pos = np.concatenate([pos_s, pos_l])
+    all_labels: list[str] = [f"{v:.4f}" for v in ticks_s] + [f"{v:.4f}" for v in ticks_l]
+
+    ax.set_yticks(all_pos)
+    ax.set_yticklabels(all_labels, fontsize=8)
+
+    ax.set_ylim(-0.04, 1.04)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel("Expected Profit", fontsize=12)
+    ax.set_title(title, fontsize=14)
+    ax.legend(fontsize=10, loc="best")
+    fig.tight_layout()
+
+    path = OUTPUT_DIR / filename
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
+    print(f"  Saved: {path}")
+
+
 def run_all() -> None:
     # ── 图 1: J_I 变化, J_I + J_U = 30 ──
     print("=" * 60)
@@ -182,6 +288,7 @@ def run_all() -> None:
     j_values = np.arange(1, 30, dtype=float)
     x, res = solve_sweep("J_I", j_values, extra_param="J_U", extra_fn=lambda j: 30 - j, bidirectional=True)
     plot_profit_curves(x, res, "J_I", "Profits vs J_I (J_I + J_U = 30)", "fig1_J_I_sweep.png")
+    plot_profit_curves_rescaled(x, res, "J_I", "Profits vs J_I (J_I + J_U = 30) [rescaled]", "fig1_J_I_sweep_rescaled.png")
 
     # ── 图 2: sigma_epsilon2 变化 ──
     print("=" * 60)
@@ -189,6 +296,7 @@ def run_all() -> None:
     print("=" * 60)
     x, res = solve_sweep("sigma_epsilon2", np.linspace(0.1, 30, 100), bidirectional=True)
     plot_profit_curves(x, res, r"$\sigma_\epsilon^2$", r"Profits vs $\sigma_\epsilon^2$", "fig2_sigma_epsilon2_sweep.png")
+    plot_profit_curves_rescaled(x, res, r"$\sigma_\epsilon^2$", r"Profits vs $\sigma_\epsilon^2$ [rescaled]", "fig2_sigma_epsilon2_sweep_rescaled.png")
 
     # ── 图 3: sigma_eta2 变化 ──
     print("=" * 60)
@@ -196,6 +304,7 @@ def run_all() -> None:
     print("=" * 60)
     x, res = solve_sweep("sigma_eta2", np.linspace(0.1, 30, 100))
     plot_profit_curves(x, res, r"$\sigma_\eta^2$", r"Profits vs $\sigma_\eta^2$", "fig3_sigma_eta2_sweep.png")
+    plot_profit_curves_rescaled(x, res, r"$\sigma_\eta^2$", r"Profits vs $\sigma_\eta^2$ [rescaled]", "fig3_sigma_eta2_sweep_rescaled.png")
 
     # ── 图 4: sigma_u2 变化 ──
     print("=" * 60)
@@ -203,6 +312,7 @@ def run_all() -> None:
     print("=" * 60)
     x, res = solve_sweep("sigma_u2", np.linspace(0.1, 30, 100))
     plot_profit_curves(x, res, r"$\sigma_u^2$", r"Profits vs $\sigma_u^2$", "fig4_sigma_u2_sweep.png")
+    plot_profit_curves_rescaled(x, res, r"$\sigma_u^2$", r"Profits vs $\sigma_u^2$ [rescaled]", "fig4_sigma_u2_sweep_rescaled.png")
 
     # ── 图 5: rho 变化 ──
     print("=" * 60)
@@ -210,6 +320,7 @@ def run_all() -> None:
     print("=" * 60)
     x, res = solve_sweep("rho", np.linspace(0.01, 0.99, 100))
     plot_profit_curves(x, res, r"$\rho$", r"Profits vs $\rho$", "fig5_rho_sweep.png")
+    plot_profit_curves_rescaled(x, res, r"$\rho$", r"Profits vs $\rho$ [rescaled]", "fig5_rho_sweep_rescaled.png")
 
     print("\nAll figures complete.")
 
