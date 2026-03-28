@@ -41,7 +41,9 @@ class ScipyRootSolver:
             lambda vector: system.equations(to_float_array(vector), params),
             guess,
             method=self.method,
-            jac=system.jacobian if use_jacobian else None,
+            jac=(lambda v: system.jacobian(to_float_array(v), params))
+            if use_jacobian
+            else None,
             options=root_options,
         )
 

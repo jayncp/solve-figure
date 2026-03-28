@@ -34,6 +34,10 @@ INITIAL_GUESS = np.array(
     dtype=float,
 )
 
+# Reject solutions whose residual norm exceeds this — they are spurious
+# local minima of ||F(x)||² rather than actual roots F(x)=0.
+RESIDUAL_ACCEPT = 1e-6
+
 RHO_VALUES = np.linspace(0.01, 0.99, 120)
 
 BASE_PARAMS = {
@@ -53,6 +57,10 @@ EXTREME_VALUES = {
     "sigma_epsilon2": (0.1, 50.0),
     "sigma_eta2": (0.1, 50.0),
 }
+
+# EXTREME_VALUES = {
+#     "sigma_epsilon2": (0.1, 25.0),
+# }
 
 # Relative variation threshold: (max-min)/mean must exceed this to count.
 REL_VAR_THRESHOLD = 0.01  # 2%
@@ -99,8 +107,13 @@ def _sweep_one_dir(
     for rho in rho_arr:
         p = dict(params_base, rho=float(rho))
         try:
-            r = solver.solve(model, p, initial_guess=g)
-            if r.success:
+            r = solver.solve(
+                model,
+                p,
+                initial_guess=g,
+                options={"use_jacobian": True, "xtol": 1e-15},
+            )
+            if r.success and r.residual_norm < RESIDUAL_ACCEPT:
                 out.append(
                     PointResult(
                         informed=r.metrics.get("profit_informed_mm", float("nan")),
@@ -205,6 +218,11 @@ def is_non_monotonic_robust(
     return bool(np.any(changes != 0)), rv
 
 
+def _expand_range(lo: float, hi: float, frac: float = 0.10) -> tuple[float, float]:
+    margin = (hi - lo) * frac if hi != lo else abs(lo) * frac or 0.1
+    return lo - margin, hi + margin
+
+
 def plot_case(
     rho: np.ndarray,
     informed: np.ndarray,
@@ -214,33 +232,77 @@ def plot_case(
     tag: str,
     nm_which: list[str],
 ) -> Path:
-    fig, ax = plt.subplots(figsize=(9, 5))
+    """Piecewise-linear y-axis: each curve gets half the visual space."""
+    yi, yu = informed, uninformed
 
-    for y, name in [(informed, "Informed MM"), (uninformed, "Uninformed MM")]:
-        ax.plot(rho, y, marker=".", markersize=2, label=name)
-        valid = np.isfinite(y)
+    # per-curve ranges (ignoring NaN)
+    vi = yi[np.isfinite(yi)]
+    vu = yu[np.isfinite(yu)]
+    lo_i, hi_i = _expand_range(float(vi.min()), float(vi.max()))
+    lo_u, hi_u = _expand_range(float(vu.min()), float(vu.max()))
+
+    # visual bands: uninformed [0, 0.48], informed [0.52, 1.0]
+    V_U_LO, V_U_HI = 0.0, 0.48
+    V_I_LO, V_I_HI = 0.52, 1.0
+
+    def to_vis(y: np.ndarray, lo: float, hi: float, vlo: float, vhi: float) -> np.ndarray:
+        frac = (y - lo) / (hi - lo) if hi != lo else np.full_like(y, 0.5)
+        return vlo + frac * (vhi - vlo)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Informed (top)
+    yv_i = to_vis(yi, lo_i, hi_i, V_I_LO, V_I_HI)
+    ax.plot(rho, yv_i, marker=".", markersize=2, label="Informed MM", color="#1f77b4")
+    # Uninformed (bottom)
+    yv_u = to_vis(yu, lo_u, hi_u, V_U_LO, V_U_HI)
+    ax.plot(rho, yv_u, marker=".", markersize=2, label="Uninformed MM", color="#ff7f0e")
+
+    # Mark max/min
+    for yraw, yvis in [(yi, yv_i), (yu, yv_u)]:
+        valid = np.isfinite(yraw)
         if valid.any():
-            idx_max = int(np.nanargmax(y))
-            idx_min = int(np.nanargmin(y))
-            ax.plot(rho[idx_max], y[idx_max], "o", color="red", markersize=6, zorder=5)
-            ax.plot(rho[idx_min], y[idx_min], "o", color="blue", markersize=6, zorder=5)
+            idx_max = int(np.nanargmax(yraw))
+            idx_min = int(np.nanargmin(yraw))
+            ax.plot(rho[idx_max], yvis[idx_max], "o", color="red", markersize=7, zorder=5)
+            ax.plot(rho[idx_min], yvis[idx_min], "o", color="blue", markersize=7, zorder=5)
 
-    ax.set_ylabel("Expected Profit", fontsize=11)
+    # Break mark
+    brk_y = (V_U_HI + V_I_LO) / 2
+    d = 0.008
+    for xf in (0.0, 1.0):
+        ax.plot([xf - 0.015, xf + 0.015], [brk_y - d, brk_y + d],
+                transform=ax.transAxes, color="k", clip_on=False, linewidth=1.2)
+        ax.plot([xf - 0.015, xf + 0.015], [brk_y - 2 * d, brk_y],
+                transform=ax.transAxes, color="k", clip_on=False, linewidth=1.2)
+
+    # Non-uniform y ticks
+    n_ticks = 6
+    ticks_u = np.linspace(lo_u, hi_u, n_ticks)
+    ticks_i = np.linspace(lo_i, hi_i, n_ticks)
+    pos_u = to_vis(ticks_u, lo_u, hi_u, V_U_LO, V_U_HI)
+    pos_i = to_vis(ticks_i, lo_i, hi_i, V_I_LO, V_I_HI)
+
+    all_pos = np.concatenate([pos_u, pos_i])
+    all_labels = [f"{v:.6f}" for v in ticks_u] + [f"{v:.6f}" for v in ticks_i]
+    all_colors = ["#ff7f0e"] * n_ticks + ["#1f77b4"] * n_ticks
+
+    ax.set_yticks(all_pos)
+    ax.set_yticklabels(all_labels, fontsize=7)
+    for lbl, col in zip(ax.get_yticklabels(), all_colors):
+        lbl.set_color(col)
+
+    ax.set_ylim(-0.04, 1.04)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+
     ax.set_xlabel(r"$\rho$", fontsize=12)
-    ax.set_title(
-        f"MM Profits vs rho  |  {label}\nnon-monotonic: {', '.join(nm_which)}",
-        fontsize=10,
-    )
-    ax.legend(fontsize=10)
-    ax.grid(True, linestyle="--", alpha=0.3)
-
-    # # Residual subplot
-    # ax_res.semilogy(rho, residuals, color="gray", linewidth=0.8)
-    # ax_res.set_ylabel("Residual", fontsize=9)
-    # ax_res.set_xlabel(r"$\rho$", fontsize=12)
-    # ax_res.grid(True, linestyle="--", alpha=0.3)
-
+    ax.set_ylabel("Expected Profit", fontsize=12)
+    nm_str = ", ".join(nm_which)
+    ax.set_title(f"MM Profits vs rho  |  {label}\nnon-monotonic: {nm_str}", fontsize=10)
+    ax.legend(fontsize=10, loc="best")
     fig.tight_layout()
+
     path = OUTPUT_DIR / f"rho_sweep_{tag}.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)
