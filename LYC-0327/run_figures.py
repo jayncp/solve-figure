@@ -22,12 +22,13 @@ from equilibrium.solvers.scipy_root import ScipyRootSolver
 OUTPUT_DIR = Path(__file__).parent / "figures"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-METRICS = ("profit_insider", "profit_informed_mm", "profit_uninformed_mm", "Gamma")
+METRICS = ("profit_insider", "profit_informed_mm", "profit_uninformed_mm", "Gamma", "profit_mm_diff")
 LABELS = {
     "profit_insider": "Insider",
     "profit_informed_mm": "Informed MM",
     "profit_uninformed_mm": "Uninformed MM",
     "Gamma": r"$\Gamma$ (Noise Trader Loss)",
+    "profit_mm_diff": "Informed MM - Uninformed MM",
 }
 
 BASE_PARAMS = {
@@ -186,6 +187,7 @@ def plot_profit_curves(
 GROUP_SMALL = (
     "profit_informed_mm",
     "profit_uninformed_mm",
+    "profit_mm_diff",
 )  # MM group (small values, bottom)
 GROUP_LARGE = ("profit_insider", "Gamma")  # Insider/Noise group (large values, top)
 

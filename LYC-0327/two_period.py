@@ -417,6 +417,7 @@ class TwoPeriodModel(EquationSystem):
             "profit_informed_mm": profit_informed_mm,
             "profit_uninformed_mm": profit_uninformed_mm,
             "Gamma": profit_insider + profit_informed_mm + profit_uninformed_mm,
+            "profit_mm_diff": profit_informed_mm - profit_uninformed_mm,
         }
         self._ensure_all_finite(intermediates)
         return intermediates
@@ -475,6 +476,7 @@ class TwoPeriodModel(EquationSystem):
             "profit_informed_mm": intermediates["profit_informed_mm"],
             "profit_uninformed_mm": intermediates["profit_uninformed_mm"],
             "Gamma": intermediates["Gamma"],
+            "profit_mm_diff": intermediates["profit_mm_diff"],
         }
 
     # ── Complex-step Jacobian ────────────────────────────────────────
