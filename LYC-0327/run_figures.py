@@ -180,7 +180,7 @@ def plot_profit_curves(
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Expected Profit", fontsize=12)
     ax.set_title(title, fontsize=14)
-    ax.legend(fontsize=11)
+    ax.legend(fontsize=8, framealpha=0.5, loc="best")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
 
@@ -313,7 +313,7 @@ def plot_profit_curves_rescaled(
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Expected Profit", fontsize=12)
     ax.set_title(title, fontsize=14)
-    ax.legend(fontsize=10, loc="best")
+    ax.legend(fontsize=8, framealpha=0.5, loc="best")
     fig.tight_layout()
 
     path = OUTPUT_DIR / filename
@@ -362,7 +362,7 @@ def run_single_figure_J(value_values: np.ndarray) -> None:
         x,
         res,
         "J_I",
-        f"Profits vs J_I (J_I + J_U = {total_j}) [rescaled]",
+        f"Profits vs J_I (J_I + J_U = {total_j})",
         "fig1_J_I_sweep.png",
     )
 
