@@ -245,7 +245,9 @@ def plot_case(
     V_U_LO, V_U_HI = 0.0, 0.48
     V_I_LO, V_I_HI = 0.52, 1.0
 
-    def to_vis(y: np.ndarray, lo: float, hi: float, vlo: float, vhi: float) -> np.ndarray:
+    def to_vis(
+        y: np.ndarray, lo: float, hi: float, vlo: float, vhi: float
+    ) -> np.ndarray:
         frac = (y - lo) / (hi - lo) if hi != lo else np.full_like(y, 0.5)
         return vlo + frac * (vhi - vlo)
 
@@ -264,17 +266,33 @@ def plot_case(
         if valid.any():
             idx_max = int(np.nanargmax(yraw))
             idx_min = int(np.nanargmin(yraw))
-            ax.plot(rho[idx_max], yvis[idx_max], "o", color="red", markersize=7, zorder=5)
-            ax.plot(rho[idx_min], yvis[idx_min], "o", color="blue", markersize=7, zorder=5)
+            ax.plot(
+                rho[idx_max], yvis[idx_max], "o", color="red", markersize=7, zorder=5
+            )
+            ax.plot(
+                rho[idx_min], yvis[idx_min], "o", color="blue", markersize=7, zorder=5
+            )
 
     # Break mark
     brk_y = (V_U_HI + V_I_LO) / 2
     d = 0.008
     for xf in (0.0, 1.0):
-        ax.plot([xf - 0.015, xf + 0.015], [brk_y - d, brk_y + d],
-                transform=ax.transAxes, color="k", clip_on=False, linewidth=1.2)
-        ax.plot([xf - 0.015, xf + 0.015], [brk_y - 2 * d, brk_y],
-                transform=ax.transAxes, color="k", clip_on=False, linewidth=1.2)
+        ax.plot(
+            [xf - 0.015, xf + 0.015],
+            [brk_y - d, brk_y + d],
+            transform=ax.transAxes,
+            color="k",
+            clip_on=False,
+            linewidth=1.2,
+        )
+        ax.plot(
+            [xf - 0.015, xf + 0.015],
+            [brk_y - 2 * d, brk_y],
+            transform=ax.transAxes,
+            color="k",
+            clip_on=False,
+            linewidth=1.2,
+        )
 
     # Non-uniform y ticks
     n_ticks = 6

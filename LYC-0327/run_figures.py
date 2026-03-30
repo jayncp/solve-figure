@@ -22,7 +22,13 @@ from equilibrium.solvers.scipy_root import ScipyRootSolver
 OUTPUT_DIR = Path(__file__).parent / "figures"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-METRICS = ("profit_insider", "profit_informed_mm", "profit_uninformed_mm", "Gamma", "profit_mm_diff")
+METRICS = (
+    "profit_insider",
+    "profit_informed_mm",
+    "profit_uninformed_mm",
+    "Gamma",
+    "profit_mm_diff",
+)
 LABELS = {
     "profit_insider": "Insider",
     "profit_informed_mm": "Informed MM",
@@ -35,7 +41,7 @@ BASE_PARAMS = {
     "J_I": 15.0,
     "J_U": 15.0,
     "sigma_v2": 1.0,
-    "sigma_u2": 1.0,
+    "sigma_u2": 0.05,
     "sigma_epsilon2": 1.0,
     "sigma_eta2": 1.0,
     "rho": 0.5,
@@ -316,104 +322,58 @@ def plot_profit_curves_rescaled(
     print(f"  Saved: {path}")
 
 
-def run_all() -> None:
-    # ── 图 1: J_I 变化, J_I + J_U = 30 ──
-    print("=" * 60)
-    print("Fig 1: J_I sweep (J_I + J_U = 30)")
-    print("=" * 60)
-    j_values = np.arange(1, 30, dtype=float)
-    x, res = solve_sweep(
+def _insert_integers(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Merge range-interior integers into *values*.
+
+    Returns (merged_sorted, is_integer_mask).  The mask marks which entries
+    are integers (suitable for filtering after solving).
+    """
+    lo, hi = int(np.ceil(values.min())), int(np.floor(values.max()))
+    integers = set(range(lo, hi + 1))
+    merged = sorted(set(values.tolist()) | {float(i) for i in integers})
+    arr = np.array(merged)
+    mask = np.array([x == int(x) and int(x) in integers for x in merged])
+    return arr, mask
+
+
+def _filter_by_mask(
+    x_all: np.ndarray,
+    res_all: dict[str, list[float]],
+    mask: np.ndarray,
+) -> tuple[np.ndarray, dict[str, list[float]]]:
+    """Keep only the points where *mask* is True."""
+    return x_all[mask], {
+        m: [v for v, keep in zip(res_all[m], mask) if keep] for m in res_all
+    }
+
+
+def run_single_figure_J(value_values: np.ndarray) -> None:
+    total_j = int(np.round(value_values.max()))
+    dense_vals, int_mask = _insert_integers(value_values)
+    x_all, res_all = solve_sweep(
         "J_I",
-        j_values,
+        dense_vals,
         extra_param="J_U",
-        extra_fn=lambda j: 30 - j,
+        extra_fn=lambda j: total_j - j,
         bidirectional=True,
     )
-    plot_profit_curves(
-        x, res, "J_I", "Profits vs J_I (J_I + J_U = 30)", "fig1_J_I_sweep.png"
-    )
+    x, res = _filter_by_mask(x_all, res_all, int_mask)
     plot_profit_curves_rescaled(
         x,
         res,
         "J_I",
-        "Profits vs J_I (J_I + J_U = 30) [rescaled]",
-        "fig1_J_I_sweep_rescaled.png",
+        f"Profits vs J_I (J_I + J_U = {total_j}) [rescaled]",
+        "fig1_J_I_sweep.png",
     )
 
-    # ── 图 2: sigma_epsilon2 变化 ──
-    print("=" * 60)
-    print("Fig 2: sigma_epsilon2 sweep")
-    print("=" * 60)
-    x, res = solve_sweep(
-        "sigma_epsilon2", np.linspace(0.1, 30, 100), bidirectional=True
-    )
-    plot_profit_curves(
-        x,
-        res,
-        r"$\sigma_\epsilon^2$",
-        r"Profits vs $\sigma_\epsilon^2$",
-        "fig2_sigma_epsilon2_sweep.png",
-    )
+
+def run_single_figure_other(value_param: str, value_values: np.ndarray) -> None:
+    x, res = solve_sweep(value_param, value_values, bidirectional=True)
     plot_profit_curves_rescaled(
-        x,
-        res,
-        r"$\sigma_\epsilon^2$",
-        r"Profits vs $\sigma_\epsilon^2$ [rescaled]",
-        "fig2_sigma_epsilon2_sweep_rescaled.png",
+        x, res, value_param, f"Profits vs {value_param}", f"fig_{value_param}_sweep.png"
     )
-
-    # ── 图 3: sigma_eta2 变化 ──
-    print("=" * 60)
-    print("Fig 3: sigma_eta2 sweep")
-    print("=" * 60)
-    x, res = solve_sweep("sigma_eta2", np.linspace(0.1, 30, 100))
-    plot_profit_curves(
-        x,
-        res,
-        r"$\sigma_\eta^2$",
-        r"Profits vs $\sigma_\eta^2$",
-        "fig3_sigma_eta2_sweep.png",
-    )
-    plot_profit_curves_rescaled(
-        x,
-        res,
-        r"$\sigma_\eta^2$",
-        r"Profits vs $\sigma_\eta^2$ [rescaled]",
-        "fig3_sigma_eta2_sweep_rescaled.png",
-    )
-
-    # ── 图 4: sigma_u2 变化 ──
-    print("=" * 60)
-    print("Fig 4: sigma_u2 sweep")
-    print("=" * 60)
-    x, res = solve_sweep("sigma_u2", np.linspace(0.1, 30, 100))
-    plot_profit_curves(
-        x, res, r"$\sigma_u^2$", r"Profits vs $\sigma_u^2$", "fig4_sigma_u2_sweep.png"
-    )
-    plot_profit_curves_rescaled(
-        x,
-        res,
-        r"$\sigma_u^2$",
-        r"Profits vs $\sigma_u^2$ [rescaled]",
-        "fig4_sigma_u2_sweep_rescaled.png",
-    )
-
-    # ── 图 5: rho 变化 ──
-    print("=" * 60)
-    print("Fig 5: rho sweep")
-    print("=" * 60)
-    x, res = solve_sweep("rho", np.linspace(0.01, 0.99, 100))
-    plot_profit_curves(x, res, r"$\rho$", r"Profits vs $\rho$", "fig5_rho_sweep.png")
-    plot_profit_curves_rescaled(
-        x,
-        res,
-        r"$\rho$",
-        r"Profits vs $\rho$ [rescaled]",
-        "fig5_rho_sweep_rescaled.png",
-    )
-
-    print("\nAll figures complete.")
 
 
 if __name__ == "__main__":
-    run_all()
+    run_single_figure_J(np.linspace(1, 30, 50))
+    run_single_figure_other("sigma_epsilon2", np.linspace(0.1, 30, 100))
