@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -18,7 +19,7 @@ from equilibrium.solvers.base import (
 )
 from equilibrium.utils.validation import to_float_array
 
-SweepMode: TypeAlias = Literal["independent", "path"]
+SweepMode: TypeAlias = Literal["independent", "path", "adaptive"]
 
 
 @dataclass(slots=True)
@@ -258,13 +259,36 @@ class ParameterSweep:
         initial_guess: NDArrayFloat | None = None,
         options: dict[str, object] | None = None,
         mode: SweepMode = "path",
+        param_modifier: Callable[[Params, float], Params] | None = None,
+        probe_size: int = 10,
     ) -> SweepResult1D:
-        """Evaluate the system along a 1D path of parameter values."""
+        """Evaluate the system along a 1D path of parameter values.
+
+        When *mode* is ``"adaptive"``, the first *probe_size* points from both
+        ends are solved to determine the sweep direction with the higher
+        success rate, then the full sweep proceeds from that end using
+        warm-start (``"path"`` mode).
+        """
         system.validate_params(base_params)
         if sweep_param not in base_params:
             raise KeyError(f"Unknown sweep parameter '{sweep_param}'")
 
         values = to_float_array(sweep_values)
+
+        if mode == "adaptive":
+            return self._sweep_1d_adaptive(
+                system,
+                solver,
+                base_params,
+                sweep_param,
+                values,
+                metric_names,
+                initial_guess=initial_guess,
+                options=options,
+                param_modifier=param_modifier,
+                probe_size=probe_size,
+            )
+
         current_guess = (
             None
             if initial_guess is None
@@ -275,6 +299,8 @@ class ParameterSweep:
         for index, value in enumerate(values):
             params = dict(base_params)
             params[sweep_param] = float(value)
+            if param_modifier is not None:
+                params = param_modifier(params, float(value))
             guess = self._guess_for_mode(mode, current_guess, initial_guess, system)
 
             try:
@@ -323,6 +349,179 @@ class ParameterSweep:
             sweep_values=values,
             metric_names=tuple(metric_names),
             points=tuple(points),
+        )
+
+    # -- adaptive helpers --------------------------------------------------
+
+    def _probe_direction(
+        self,
+        system: EquationSystem,
+        solver: SolverStrategy,
+        base_params: Params,
+        sweep_param: str,
+        probe_values: NDArrayFloat,
+        initial_guess: NDArrayFloat | None,
+        options: dict[str, object] | None,
+        param_modifier: Callable[[Params, float], Params] | None,
+    ) -> tuple[int, int, NDArrayFloat | None]:
+        """Solve a short probe sequence and return (successes, total, last_ok_x)."""
+        current_guess = (
+            None
+            if initial_guess is None
+            else system.validate_x(to_float_array(initial_guess))
+        )
+        successes = 0
+        last_ok_x: NDArrayFloat | None = None
+
+        for value in probe_values:
+            params = dict(base_params)
+            params[sweep_param] = float(value)
+            if param_modifier is not None:
+                params = param_modifier(params, float(value))
+            try:
+                result = solver.solve(
+                    system,
+                    params,
+                    initial_guess=current_guess,
+                    options=options,
+                )
+                if result.success and result.constraints_ok:
+                    successes += 1
+                    current_guess = result.x
+                    last_ok_x = result.x.copy()
+            except Exception:
+                pass
+
+        return successes, len(probe_values), last_ok_x
+
+    def _sweep_1d_adaptive(
+        self,
+        system: EquationSystem,
+        solver: SolverStrategy,
+        base_params: Params,
+        sweep_param: str,
+        values: NDArrayFloat,
+        metric_names: list[str],
+        *,
+        initial_guess: NDArrayFloat | None,
+        options: dict[str, object] | None,
+        param_modifier: Callable[[Params, float], Params] | None,
+        probe_size: int,
+    ) -> SweepResult1D:
+        n = min(probe_size, len(values))
+
+        left_ok, left_total, left_x = self._probe_direction(
+            system,
+            solver,
+            base_params,
+            sweep_param,
+            values[:n],
+            initial_guess,
+            options,
+            param_modifier,
+        )
+        right_ok, right_total, right_x = self._probe_direction(
+            system,
+            solver,
+            base_params,
+            sweep_param,
+            values[-n:][::-1],
+            initial_guess,
+            options,
+            param_modifier,
+        )
+
+        sweep_from_right = right_ok > left_ok or (right_ok == left_ok and right_ok > 0)
+        direction = "right" if sweep_from_right else "left"
+        print(
+            f"  Adaptive probe: left {left_ok}/{left_total}, "
+            f"right {right_ok}/{right_total} -> sweep from {direction}"
+        )
+
+        # Choose warm-start guess from the winning probe
+        if sweep_from_right:
+            ordered_values = values[::-1]
+            warm_guess = right_x
+        else:
+            ordered_values = values
+            warm_guess = left_x
+
+        start_guess = warm_guess if warm_guess is not None else initial_guess
+
+        # Full sweep in path mode along the chosen direction
+        current_guess = (
+            None
+            if start_guess is None
+            else system.validate_x(to_float_array(start_guess))
+        )
+        raw_points: list[SweepPoint] = []
+
+        for i, value in enumerate(ordered_values):
+            params = dict(base_params)
+            params[sweep_param] = float(value)
+            if param_modifier is not None:
+                params = param_modifier(params, float(value))
+
+            try:
+                result = solver.solve(
+                    system,
+                    params,
+                    initial_guess=current_guess,
+                    options=options,
+                )
+            except Exception as exc:
+                fallback_x = (
+                    np.zeros(system.n_vars, dtype=float)
+                    if current_guess is None
+                    else current_guess
+                )
+                result = build_solve_result(
+                    system,
+                    params,
+                    fallback_x,
+                    success=False,
+                    method=getattr(solver, "name", type(solver).__name__),
+                    residual_norm=float("inf"),
+                    message=str(exc),
+                    failures=(
+                        SolverFailure(
+                            method=getattr(solver, "name", type(solver).__name__),
+                            message=str(exc),
+                        ),
+                    ),
+                )
+
+            raw_points.append(
+                SweepPoint(
+                    index=i,
+                    sweep_value=float(value),
+                    params=params,
+                    initial_guess=None
+                    if current_guess is None
+                    else current_guess.copy(),
+                    result=result,
+                )
+            )
+
+            if result.success:
+                current_guess = result.x
+
+            if (i + 1) % 20 == 0 or i == len(ordered_values) - 1:
+                n_ok = sum(1 for p in raw_points if p.result.success)
+                print(f"  [{i + 1}/{len(ordered_values)}] success: {n_ok}")
+
+        # Re-order to match original sweep_values
+        if sweep_from_right:
+            raw_points = list(reversed(raw_points))
+        for idx, pt in enumerate(raw_points):
+            pt.index = idx
+
+        return SweepResult1D(
+            mode="adaptive",
+            sweep_param=sweep_param,
+            sweep_values=values,
+            metric_names=tuple(metric_names),
+            points=tuple(raw_points),
         )
 
     def sweep_2d(

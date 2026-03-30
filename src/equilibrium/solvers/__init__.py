@@ -9,11 +9,13 @@ from equilibrium.solvers.base import (
 )
 from equilibrium.solvers.composite import CompositeSolver
 from equilibrium.solvers.continuation import ContinuationSolver
+from equilibrium.solvers.robust import RobustGuessSolver
 from equilibrium.solvers.scipy_root import ScipyRootSolver
 
 __all__ = [
     "CompositeSolver",
     "ContinuationSolver",
+    "RobustGuessSolver",
     "ScipyRootSolver",
     "SolveAcceptance",
     "SolveResult",
