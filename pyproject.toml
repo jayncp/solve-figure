@@ -14,9 +14,6 @@ dependencies = [
     "scipy>=1.16.0",
 ]
 
-[project.scripts]
-solve-figure0326 = "equilibrium.app:main"
-
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
