@@ -6,16 +6,15 @@ import pytest
 
 from equilibrium.models import DemoEquilibriumModel
 from equilibrium.models.base import EquationSystem, NDArrayFloat, Params
-from equilibrium.plotting import FigurePlotter, ParameterSweep
+from equilibrium.plotting import FigurePlotter, save_json, sweep_1d, sweep_2d
 from equilibrium.solvers import ScipyRootSolver, SolveResult, build_solve_result
 
 
 def test_sweep_1d_returns_metric_series_and_success_mask() -> None:
     system = DemoEquilibriumModel()
     solver = ScipyRootSolver(require_constraints=True)
-    sweep = ParameterSweep()
 
-    result = sweep.sweep_1d(
+    result = sweep_1d(
         system,
         solver,
         base_params={"curvature": 1.0, "slope": 0.5},
@@ -39,10 +38,9 @@ def test_sweep_1d_returns_metric_series_and_success_mask() -> None:
 def test_plotter_saves_figure(tmp_path: Path) -> None:
     system = DemoEquilibriumModel()
     solver = ScipyRootSolver(require_constraints=True)
-    sweep = ParameterSweep()
     plotter = FigurePlotter()
 
-    result = sweep.sweep_1d(
+    result = sweep_1d(
         system,
         solver,
         base_params={"curvature": 1.0, "slope": 0.5},
@@ -61,9 +59,8 @@ def test_plotter_saves_figure(tmp_path: Path) -> None:
 def test_sweep_2d_returns_metric_grid_and_json(tmp_path: Path) -> None:
     system = DemoEquilibriumModel()
     solver = ScipyRootSolver(require_constraints=True)
-    sweep = ParameterSweep()
 
-    result = sweep.sweep_2d(
+    result = sweep_2d(
         system,
         solver,
         base_params={"curvature": 1.0, "slope": 0.5},
@@ -77,7 +74,7 @@ def test_sweep_2d_returns_metric_grid_and_json(tmp_path: Path) -> None:
     )
 
     grid = result.metric_grid("x")
-    json_path = sweep.save_json(result, tmp_path / "sweep_2d.json")
+    json_path = save_json(result, tmp_path / "sweep_2d.json")
 
     assert result.mode == "path"
     assert grid.shape == (2, 2)
@@ -88,10 +85,9 @@ def test_sweep_2d_returns_metric_grid_and_json(tmp_path: Path) -> None:
 def test_plotter_saves_2d_heatmap(tmp_path: Path) -> None:
     system = DemoEquilibriumModel()
     solver = ScipyRootSolver(require_constraints=True)
-    sweep = ParameterSweep()
     plotter = FigurePlotter()
 
-    result = sweep.sweep_2d(
+    result = sweep_2d(
         system,
         solver,
         base_params={"curvature": 1.0, "slope": 0.5},
@@ -177,9 +173,8 @@ class ConditionalFailSolver:
 def test_sweep_1d_independent_mode_reuses_base_guess_each_time() -> None:
     system = TrackingSystem()
     solver = TrackingSolver()
-    sweep = ParameterSweep()
 
-    result = sweep.sweep_1d(
+    result = sweep_1d(
         system,
         solver,
         base_params={"target": 0.0},
@@ -199,9 +194,8 @@ def test_sweep_1d_independent_mode_reuses_base_guess_each_time() -> None:
 def test_sweep_1d_path_mode_uses_previous_success_as_next_guess() -> None:
     system = TrackingSystem()
     solver = TrackingSolver()
-    sweep = ParameterSweep()
 
-    result = sweep.sweep_1d(
+    result = sweep_1d(
         system,
         solver,
         base_params={"target": 0.0},
@@ -221,9 +215,8 @@ def test_sweep_1d_path_mode_uses_previous_success_as_next_guess() -> None:
 def test_sweep_1d_records_failure_points() -> None:
     system = TrackingSystem()
     solver = ConditionalFailSolver()
-    sweep = ParameterSweep()
 
-    result = sweep.sweep_1d(
+    result = sweep_1d(
         system,
         solver,
         base_params={"target": 0.0},

@@ -2,7 +2,6 @@
 
 from equilibrium.plotting.figures import FigurePlotter
 from equilibrium.plotting.sweep import (
-    ParameterSweep,
     SweepFailurePoint,
     SweepFailurePoint2D,
     SweepMode,
@@ -10,11 +9,13 @@ from equilibrium.plotting.sweep import (
     SweepPoint2D,
     SweepResult1D,
     SweepResult2D,
+    save_json,
+    sweep_1d,
+    sweep_2d,
 )
 
 __all__ = [
     "FigurePlotter",
-    "ParameterSweep",
     "SweepFailurePoint",
     "SweepFailurePoint2D",
     "SweepMode",
@@ -22,4 +23,7 @@ __all__ = [
     "SweepPoint2D",
     "SweepResult1D",
     "SweepResult2D",
+    "save_json",
+    "sweep_1d",
+    "sweep_2d",
 ]

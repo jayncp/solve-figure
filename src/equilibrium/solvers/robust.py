@@ -18,9 +18,10 @@ class RobustGuessSolver:
     2. Perturbed copies of that guess (element-wise relative noise).
     3. Fully random guesses drawn from a uniform distribution.
 
-    The first successful result (``success and constraints_ok``) is returned
+    The first result satisfying ``success and constraints_ok`` is returned
     immediately.  If every attempt fails the result with the smallest
-    *residual_norm* is returned with all accumulated failures.
+    *residual_norm* among constraint-satisfying solutions is preferred;
+    otherwise the overall smallest residual is returned.
     """
 
     def __init__(
@@ -51,9 +52,19 @@ class RobustGuessSolver:
     ) -> SolveResult:
         failures: list[SolverFailure] = []
         best: SolveResult | None = None
+        best_constrained: SolveResult | None = None
+
+        def _update_best(result: SolveResult) -> None:
+            nonlocal best, best_constrained
+            if best is None or result.residual_norm < best.residual_norm:
+                best = result
+            if result.constraints_ok and (
+                best_constrained is None
+                or result.residual_norm < best_constrained.residual_norm
+            ):
+                best_constrained = result
 
         def _try(guess: NDArrayFloat | None, label: str) -> SolveResult | None:
-            nonlocal best
             try:
                 result = self.inner.solve(
                     system, params, initial_guess=guess, options=options
@@ -67,6 +78,7 @@ class RobustGuessSolver:
             if result.success and result.constraints_ok:
                 return replace(result, failures=(*failures, *result.failures))
 
+            _update_best(result)
             failures.append(
                 SolverFailure(
                     method=f"{self.name}/{label}",
@@ -74,8 +86,6 @@ class RobustGuessSolver:
                     residual_norm=result.residual_norm,
                 )
             )
-            if best is None or result.residual_norm < best.residual_norm:
-                best = result
             return None
 
         # Stage 1: user-provided guess
@@ -102,6 +112,7 @@ class RobustGuessSolver:
             if ok is not None:
                 return ok
 
-        # All failed – return best result with accumulated failures
-        assert best is not None
-        return replace(best, failures=tuple(failures))
+        # All failed – prefer best constrained result, then overall best
+        fallback = best_constrained if best_constrained is not None else best
+        assert fallback is not None
+        return replace(fallback, failures=tuple(failures))

@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 from two_period import TwoPeriodModel
-from equilibrium.plotting import ParameterSweep, SweepResult1D
+from equilibrium.plotting import SweepResult1D, sweep_1d
 from equilibrium.solvers import CompositeSolver, RobustGuessSolver, ScipyRootSolver
 
 OUTPUT_DIR = Path(__file__).parent / "figures"
@@ -216,8 +216,7 @@ def _run_sweep(
     *,
     param_modifier=None,
 ) -> SweepResult1D:
-    sweep = ParameterSweep()
-    return sweep.sweep_1d(
+    return sweep_1d(
         system=TwoPeriodModel(),
         solver=make_solver(),
         base_params=BASE_PARAMS,

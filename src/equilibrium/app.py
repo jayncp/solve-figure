@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from equilibrium.models import DemoEquilibriumModel
-from equilibrium.plotting import FigurePlotter, ParameterSweep
+from equilibrium.plotting import FigurePlotter, sweep_1d
 from equilibrium.solvers import CompositeSolver, ScipyRootSolver
 
 
@@ -20,10 +20,9 @@ def run_demo_pipeline(output_dir: str | Path = "output") -> Path:
             ScipyRootSolver(method="lm", require_constraints=True),
         ]
     )
-    sweep = ParameterSweep()
     plotter = FigurePlotter()
 
-    result = sweep.sweep_1d(
+    result = sweep_1d(
         system,
         solver,
         base_params={"curvature": 1.0, "slope": 0.75},

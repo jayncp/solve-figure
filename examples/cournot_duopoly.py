@@ -27,7 +27,7 @@ import numpy as np
 
 from equilibrium.models.base import EquationSystem, NDArrayFloat, Params
 from equilibrium.plotting.figures import FigurePlotter
-from equilibrium.plotting.sweep import ParameterSweep
+from equilibrium.plotting.sweep import sweep_1d
 from equilibrium.solvers.composite import CompositeSolver
 from equilibrium.solvers.scipy_root import ScipyRootSolver
 
@@ -124,10 +124,8 @@ print()
 
 # ── Step 3: 参数扫描 ────────────────────────────────────────────────
 
-sweep = ParameterSweep()
-
 # 扫描 c (边际成本) 从 0 到 8，看产量和利润如何变化
-sweep_result = sweep.sweep_1d(
+sweep_result = sweep_1d(
     system=model,
     solver=solver,
     base_params={"a": 10.0, "b": 1.0, "c": 2.0},
