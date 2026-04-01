@@ -56,8 +56,6 @@ class TwoPeriodModel(EquationSystem):
         for name in ("J_I", "J_U"):
             if params[name] < 0:
                 raise ValueError(f"{name} must be non-negative")
-        if abs(params["rho"]) > 1:
-            raise ValueError("rho must lie in [-1, 1]")
 
     def equations(self, x: NDArrayFloat, params: Params) -> NDArrayFloat:
         intermediates = self.intermediates(x, params)

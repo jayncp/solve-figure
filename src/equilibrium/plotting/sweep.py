@@ -305,9 +305,7 @@ def _sweep_path(
 ) -> list[SweepPoint]:
     """Sweep along *values* in path mode (warm-start), returning ordered SweepPoints."""
     current_guess = (
-        None
-        if start_guess is None
-        else system.validate_x(to_float_array(start_guess))
+        None if start_guess is None else system.validate_x(to_float_array(start_guess))
     )
     points: list[SweepPoint] = []
 
@@ -460,13 +458,25 @@ def sweep_1d(
 
     if mode == "path":
         points = _sweep_path(
-            system, solver, base_params, sweep_param, values,
-            initial_guess, options, param_modifier,
+            system,
+            solver,
+            base_params,
+            sweep_param,
+            values,
+            initial_guess,
+            options,
+            param_modifier,
         )
     elif mode == "independent":
         points = _sweep_independent(
-            system, solver, base_params, sweep_param, values,
-            initial_guess, options, param_modifier,
+            system,
+            solver,
+            base_params,
+            sweep_param,
+            values,
+            initial_guess,
+            options,
+            param_modifier,
         )
     else:
         raise ValueError(f"Unknown sweep mode '{mode}'")
@@ -496,12 +506,24 @@ def _sweep_1d_adaptive(
     n = min(probe_size, len(values))
 
     left_ok, left_total, left_x = _probe_direction(
-        system, solver, base_params, sweep_param,
-        values[:n], initial_guess, options, param_modifier,
+        system,
+        solver,
+        base_params,
+        sweep_param,
+        values[:n],
+        initial_guess,
+        options,
+        param_modifier,
     )
     right_ok, right_total, right_x = _probe_direction(
-        system, solver, base_params, sweep_param,
-        values[-n:][::-1], initial_guess, options, param_modifier,
+        system,
+        solver,
+        base_params,
+        sweep_param,
+        values[-n:][::-1],
+        initial_guess,
+        options,
+        param_modifier,
     )
 
     if left_ok == 0 and right_ok == 0:
@@ -528,8 +550,15 @@ def _sweep_1d_adaptive(
     start_guess = warm_guess if warm_guess is not None else initial_guess
 
     raw_points = _sweep_path(
-        system, solver, base_params, sweep_param, ordered_values,
-        start_guess, options, param_modifier, progress_interval=20,
+        system,
+        solver,
+        base_params,
+        sweep_param,
+        ordered_values,
+        start_guess,
+        options,
+        param_modifier,
+        progress_interval=20,
     )
 
     # Re-order to match original sweep_values and assign correct indices
