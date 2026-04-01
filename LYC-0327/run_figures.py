@@ -92,25 +92,49 @@ def plot_profit_curves_rescaled(
     xlabel: str,
     title: str,
     filename: str,
+    metrics: tuple[str, ...] | None = None,
 ) -> None:
-    lo_s, hi_s = _group_range(results, GROUP_SMALL)
-    lo_l, hi_l = _group_range(results, GROUP_LARGE)
+    selected = metrics or METRICS
+    small = tuple(m for m in selected if m in GROUP_SMALL)
+    large = tuple(m for m in selected if m in GROUP_LARGE)
+    has_small = len(small) > 0
+    has_large = len(large) > 0
+    use_break = has_small and has_large
 
-    V_S_LO, V_S_HI = 0.0, 0.48
-    V_L_LO, V_L_HI = 0.52, 1.0
+    if use_break:
+        lo_s, hi_s = _group_range(results, small)
+        lo_l, hi_l = _group_range(results, large)
+        V_S_LO, V_S_HI = 0.0, 0.48
+        V_L_LO, V_L_HI = 0.52, 1.0
 
-    def to_visual(y: np.ndarray, group: str) -> np.ndarray:
-        y = np.asarray(y, dtype=float)
-        if group == "small":
-            frac = (y - lo_s) / (hi_s - lo_s) if hi_s != lo_s else np.full_like(y, 0.5)
-            return V_S_LO + frac * (V_S_HI - V_S_LO)
-        else:
-            frac = (y - lo_l) / (hi_l - lo_l) if hi_l != lo_l else np.full_like(y, 0.5)
-            return V_L_LO + frac * (V_L_HI - V_L_LO)
+        def to_visual(y: np.ndarray, group: str) -> np.ndarray:
+            y = np.asarray(y, dtype=float)
+            if group == "small":
+                frac = (
+                    (y - lo_s) / (hi_s - lo_s) if hi_s != lo_s else np.full_like(y, 0.5)
+                )
+                return V_S_LO + frac * (V_S_HI - V_S_LO)
+            else:
+                frac = (
+                    (y - lo_l) / (hi_l - lo_l) if hi_l != lo_l else np.full_like(y, 0.5)
+                )
+                return V_L_LO + frac * (V_L_HI - V_L_LO)
+    else:
+        only_keys = small or large
+        lo_only, hi_only = _group_range(results, only_keys)
+
+        def to_visual(y: np.ndarray, group: str) -> np.ndarray:
+            y = np.asarray(y, dtype=float)
+            frac = (
+                (y - lo_only) / (hi_only - lo_only)
+                if hi_only != lo_only
+                else np.full_like(y, 0.5)
+            )
+            return frac
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    for m in METRICS:
+    for m in selected:
         grp = "small" if m in GROUP_SMALL else "large"
         y_raw = results[m]
         y_vis = to_visual(y_raw, grp)
@@ -138,37 +162,41 @@ def plot_profit_curves_rescaled(
                 zorder=5,
             )
 
-    # break mark
-    brk_y = (V_S_HI + V_L_LO) / 2
-    d = 0.008
-    for xf in (0.0, 1.0):
-        ax.plot(
-            [xf - 0.015, xf + 0.015],
-            [brk_y - d, brk_y + d],
-            transform=ax.transAxes,
-            color="k",
-            clip_on=False,
-            linewidth=1.2,
-        )
-        ax.plot(
-            [xf - 0.015, xf + 0.015],
-            [brk_y - 2 * d, brk_y],
-            transform=ax.transAxes,
-            color="k",
-            clip_on=False,
-            linewidth=1.2,
-        )
+    if use_break:
+        brk_y = (V_S_HI + V_L_LO) / 2
+        d = 0.008
+        for xf in (0.0, 1.0):
+            ax.plot(
+                [xf - 0.015, xf + 0.015],
+                [brk_y - d, brk_y + d],
+                transform=ax.transAxes,
+                color="k",
+                clip_on=False,
+                linewidth=1.2,
+            )
+            ax.plot(
+                [xf - 0.015, xf + 0.015],
+                [brk_y - 2 * d, brk_y],
+                transform=ax.transAxes,
+                color="k",
+                clip_on=False,
+                linewidth=1.2,
+            )
 
     n_ticks = 6
-    ticks_s = np.linspace(lo_s, hi_s, n_ticks)
-    ticks_l = np.linspace(lo_l, hi_l, n_ticks)
-    pos_s = to_visual(ticks_s, "small")
-    pos_l = to_visual(ticks_l, "large")
-
-    all_pos = np.concatenate([pos_s, pos_l])
-    all_labels: list[str] = [f"{v:.4f}" for v in ticks_s] + [
-        f"{v:.4f}" for v in ticks_l
-    ]
+    if use_break:
+        ticks_s = np.linspace(lo_s, hi_s, n_ticks)
+        ticks_l = np.linspace(lo_l, hi_l, n_ticks)
+        pos_s = to_visual(ticks_s, "small")
+        pos_l = to_visual(ticks_l, "large")
+        all_pos = np.concatenate([pos_s, pos_l])
+        all_labels: list[str] = [f"{v:.4f}" for v in ticks_s] + [
+            f"{v:.4f}" for v in ticks_l
+        ]
+    else:
+        ticks = np.linspace(lo_only, hi_only, n_ticks)
+        all_pos = to_visual(ticks, "small")
+        all_labels = [f"{v:.4f}" for v in ticks]
 
     ax.set_yticks(all_pos)
     ax.set_yticklabels(all_labels, fontsize=8)
@@ -200,14 +228,15 @@ def _insert_integers(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 def _extract_metrics(
     result: SweepResult1D,
     mask: np.ndarray | None = None,
+    metrics: tuple[str, ...] = METRICS,
 ) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     """Extract sweep_values and metric arrays, optionally filtered by mask."""
     x = result.sweep_values
-    metrics = {m: result.metric_series(m) for m in METRICS}
+    out = {m: result.metric_series(m) for m in metrics}
     if mask is not None:
         x = x[mask]
-        metrics = {m: v[mask] for m, v in metrics.items()}
-    return x, metrics
+        out = {m: v[mask] for m, v in out.items()}
+    return x, out
 
 
 def _run_sweep(
@@ -215,6 +244,7 @@ def _run_sweep(
     sweep_values: np.ndarray,
     *,
     param_modifier=None,
+    metrics: tuple[str, ...] = METRICS,
 ) -> SweepResult1D:
     return sweep_1d(
         system=TwoPeriodModel(),
@@ -222,14 +252,18 @@ def _run_sweep(
         base_params=BASE_PARAMS,
         sweep_param=sweep_param,
         sweep_values=sweep_values,
-        metric_names=list(METRICS),
+        metric_names=list(metrics),
         initial_guess=INITIAL_GUESS,
         mode="adaptive",
         param_modifier=param_modifier,
     )
 
 
-def run_single_figure_J(value_values: np.ndarray) -> None:
+def run_single_figure_J(
+    value_values: np.ndarray,
+    metrics: tuple[str, ...] | None = None,
+) -> None:
+    selected = metrics or METRICS
     total_j = int(np.round(value_values.max()))
     dense_vals, int_mask = _insert_integers(value_values)
 
@@ -237,31 +271,57 @@ def run_single_figure_J(value_values: np.ndarray) -> None:
         "J_I",
         dense_vals,
         param_modifier=lambda p, v: {**p, "J_U": total_j - v},
+        metrics=selected,
     )
-    x, metrics = _extract_metrics(result, int_mask)
+    x, metric_data = _extract_metrics(result, int_mask, metrics=selected)
 
     plot_profit_curves_rescaled(
         x,
-        metrics,
+        metric_data,
         "J_I",
         f"Profits vs J_I (J_I + J_U = {total_j})",
         "fig1_J_I_sweep.png",
+        metrics=selected,
     )
 
 
-def run_single_figure_other(value_param: str, value_values: np.ndarray) -> None:
-    result = _run_sweep(value_param, value_values)
-    x, metrics = _extract_metrics(result)
+def run_single_figure_other(
+    value_param: str,
+    value_values: np.ndarray,
+    metrics: tuple[str, ...] | None = None,
+) -> None:
+    selected = metrics or METRICS
+    result = _run_sweep(value_param, value_values, metrics=selected)
+    x, metric_data = _extract_metrics(result, metrics=selected)
 
     plot_profit_curves_rescaled(
         x,
-        metrics,
+        metric_data,
         value_param,
         f"Profits vs {value_param}",
         f"fig_{value_param}_sweep.png",
+        metrics=selected,
     )
 
 
 if __name__ == "__main__":
-    run_single_figure_J(np.linspace(1, 30, 50))
-    run_single_figure_other("sigma_epsilon2", np.linspace(0.1, 30, 100))
+    run_single_figure_J(
+        np.linspace(1, 30, 50),
+        metrics=("profit_informed_mm", "profit_uninformed_mm"),
+    )
+    run_single_figure_other(
+        "sigma_epsilon2",
+        np.linspace(0.1, 30, 100),
+        metrics=(
+            "profit_informed_mm",
+            "profit_uninformed_mm",
+            "profit_mm_diff",
+            "Gamma",
+            "profit_insider",
+        ),
+    )
+    run_single_figure_other(
+        "rho",
+        np.linspace(0.01, 0.99, 100),
+        metrics=("profit_informed_mm", "profit_uninformed_mm", "profit_mm_diff"),
+    )
